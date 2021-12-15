@@ -1,5 +1,8 @@
 import "./index.scss";
 
+const EC = require('elliptic').ec;
+const ec = new EC('secp256k1');
+
 const server = "http://localhost:3042";
 
 document.getElementById("exchange-address").addEventListener('input', ({ target: {value} }) => {
@@ -20,15 +23,30 @@ document.getElementById("transfer-amount").addEventListener('click', () => {
   const amount = document.getElementById("send-amount").value;
   const recipient = document.getElementById("recipient").value;
 
-  const body = JSON.stringify({
+  let body = JSON.stringify({
     sender, amount, recipient
   });
 
-  const request = new Request(`${server}/send`, { method: 'POST', body });
+  // Sign the message
+  const senderPrivateKey = document.getElementById("exchange-private-address").value;
 
-  fetch(request, { headers: { 'Content-Type': 'application/json' }}).then(response => {
-    return response.json();
-  }).then(({ balance }) => {
-    document.getElementById("balance").innerHTML = balance;
-  });
+  if (sender && amount && recipient && senderPrivateKey) {
+    const key = ec.keyFromPrivate(Buffer.from(senderPrivateKey, 'hex').toString('hex'), 'hex');
+    const signature = key.sign(body).toDER();
+  
+    // Add signature to message body
+    body = JSON.stringify({
+      sender, amount, recipient, signature
+    });
+  
+    const request = new Request(`${server}/send`, { method: 'POST', body });
+  
+    fetch(request, { headers: { 'Content-Type': 'application/json' }}).then(response => {
+      return response.json();
+    }).then(({ balance }) => {
+      document.getElementById("balance").innerHTML = balance;
+    });
+  } else {
+    console.log("Missing field entry");
+  }
 });
